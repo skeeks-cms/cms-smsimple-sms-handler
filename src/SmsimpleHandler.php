@@ -1,7 +1,4 @@
 <?php
-
-require_once('./smsimple-api/smsimple.class.php');
-
 /**
  * @link https://cms.skeeks.com/
  * @copyright Copyright (c) 2010 SkeekS
@@ -13,16 +10,18 @@ namespace skeeks\cms\sms\smsimple;
 
 use skeeks\cms\sms\SmsHandler;
 use skeeks\yii2\form\fields\FieldSet;
-use skeeks\yii2\form\fields\NumberField;
 use yii\base\Exception;
 use yii\helpers\ArrayHelper;
+use yii\httpclient\Client;
 
 /**
+ *
+ * @see https://smsimple.ru/api-http/
+ *
  * @author Semenov Alexander <semenov@skeeks.com>
  */
 class SmsimpleHandler extends SmsHandler
 {
-    public $host = "http://api.smsimple.ru";
     public $login = "";
     public $password = "";
     public $sender = "0";
@@ -41,11 +40,9 @@ class SmsimpleHandler extends SmsHandler
     public function rules()
     {
         return ArrayHelper::merge(parent::rules(), [
-            [['host'], 'required'],
             [['login'], 'required'],
             [['password'], 'required'],
 
-            [['host'], 'string'],
             [['login'], 'string'],
             [['password'], 'string'],
 
@@ -56,8 +53,6 @@ class SmsimpleHandler extends SmsHandler
     public function attributeLabels()
     {
         return ArrayHelper::merge(parent::attributeLabels(), [
-            'host' => "Сервер отправки",
-
             'login'    => "Логин",
             'password' => "Пароль",
 
@@ -73,9 +68,6 @@ class SmsimpleHandler extends SmsHandler
         ]);
     }
 
-    protected function _send($to, $text, $sender = null) {
-
-    }
 
     /**
      * @return array
@@ -83,7 +75,7 @@ class SmsimpleHandler extends SmsHandler
     public function getConfigFormFields()
     {
         return [
-            'main'    => [
+            'main' => [
                 'class'  => FieldSet::class,
                 'name'   => 'Основные',
                 'fields' => [
@@ -92,13 +84,67 @@ class SmsimpleHandler extends SmsHandler
                     'sender',
                 ],
             ],
-            'default' => [
-                'class'  => FieldSet::class,
-                'name'   => 'Прочее',
-                'fields' => [
-                    'host',
-                ],
-            ],
         ];
+    }
+
+
+    /**
+     * @see https://smsimple.ru/api-http/
+     *
+     * @param      $phone
+     * @param      $text
+     * @param null $sender
+     * @return $message_id
+     */
+    public function send($phone, $text, $sender = null)
+    {
+        $queryString = http_build_query([
+            'user'    => $this->login,
+            'pass'    => $this->password,
+            'or_id'   => $this->sender,
+            'phone'   => $phone,
+            'message' => $text,
+        ]);
+
+        $url = 'https://smsimple.ru/http_send.php?'.$queryString;
+
+
+        $stream_opts = [
+            "ssl" => [
+                "verify_peer"=>false,
+                "verify_peer_name"=>false,
+            ]
+        ];
+
+        print_r($url);die;
+        $response = file_get_contents($url, false, stream_context_create($stream_opts));
+        return $response;
+
+        $client = new Client();
+        $response = $client->createRequest()
+            ->setMethod('GET')
+            ->setUrl($url)
+            ->setOptions([
+                "ssl" => [
+                    "verify_peer"      => false,
+                    "verify_peer_name" => false,
+                ],
+            ])
+            ->send();
+
+        if (!$response->isOk) {
+            throw new Exception($response->content);
+        }
+
+        return $response->content;
+    }
+
+    /**
+     * @param $message_id
+     * @return mixed
+     */
+    public function status($message_id)
+    {
+
     }
 }
